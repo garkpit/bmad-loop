@@ -136,6 +136,7 @@ from .tickets_source import (
     EpicBoundary,
     Halt,
     PickNote,
+    PickScope,
     Skip,
     TicketRef,
     TicketsWorkSource,
@@ -281,8 +282,9 @@ class TicketsEngine(CheckpointFlowMixin, Engine):
         self, *args: Any, ticket_tree_factory: TicketTreeFactory | None = None, **kwargs: Any
     ):
         # `--epic`/`--story` select by epic slug and ticket ref here, not by the
-        # sprint E-S grammar, so keep them out of the base's selector parse. Set
-        # before super().__init__, which builds the source.
+        # sprint E-S grammar, so keep them out of the base's selector parse (the
+        # source reads them from run state). Set before super().__init__, which
+        # builds the source.
         kwargs["story_filter"] = None
         kwargs["epic_filter"] = None
         self._ticket_tree_factory = ticket_tree_factory or default_ticket_tree
@@ -327,11 +329,13 @@ class TicketsEngine(CheckpointFlowMixin, Engine):
 
     def _make_work_source(self) -> WorkSource:
         """The ticket-tree source. Every getter is live: the tree is built on the
-        first pick, and approvals and closures are read from run state each time."""
+        first pick, and approvals, closures and the ``--epic``/``--story``
+        selector (resolved by ``run``) are read from run state each time."""
         return TicketsWorkSource(
             lambda: self.ticket_tree,
             lambda: self.state.ticket_story_approvals,
             lambda: self.state.ticket_epic_closures,
+            lambda: PickScope(self.state.ticket_epic_filter, self.state.story_filter or ""),
         )
 
     @property
